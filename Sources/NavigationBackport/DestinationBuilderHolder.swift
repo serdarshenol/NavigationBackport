@@ -36,8 +36,9 @@ class DestinationBuilderHolder: ObservableObject {
 
   func build<T>(_ typedData: T) -> AnyView {
     let base = (typedData as? AnyHashable)?.base
+    var key: String = ""
     if let identifier = (base ?? typedData) as? LocalDestinationID {
-      let key = identifier.rawValue.uuidString
+      key = identifier.rawValue.uuidString
       if let builder = builders[key], let output = builder(typedData) {
         return output
       }
@@ -45,7 +46,7 @@ class DestinationBuilderHolder: ObservableObject {
     } else {
       var possibleMirror: Mirror? = Mirror(reflecting: base ?? typedData)
       while let mirror = possibleMirror {
-        let key = Self.identifier(for: mirror.subjectType)
+        key = Self.identifier(for: mirror.subjectType)
 
         if let builder = builders[key], let output = builder(typedData) {
           return output
@@ -54,6 +55,6 @@ class DestinationBuilderHolder: ObservableObject {
       }
       assertionFailure("No view builder found for type \(type(of: base ?? typedData))")
     }
-    return AnyView(Image(systemName: "exclamationmark.triangle"))
+    return AnyView(ErrorView(text: "No view builder found for key \(key)"))
   }
 }

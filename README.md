@@ -1,6 +1,6 @@
 # Navigation Backport
 
-This package uses the navigation APIs available in older SwiftUI versions (such as `NavigationView` and `NavigationLink`) to recreate the new `NavigationStack` APIs introduced in WWDC22, so that you can start targeting those APIs on older versions of iOS, tvOS, macOS and watchOS. When running on an OS version that supports `NavigationStack`, `NavigationStack` will be used under the hood.
+This package uses the navigation APIs available in older SwiftUI versions (such as `NavigationView` and `NavigationLink`) to recreate the new `NavigationStack` APIs introduced in WWDC22, so that you can start targeting those APIs on older versions of iOS, tvOS and watchOS. 
  
 ✅ `NavigationStack` -> `NBNavigationStack`
 
@@ -12,8 +12,10 @@ This package uses the navigation APIs available in older SwiftUI versions (such 
 
 ✅ `NavigationPath.CodableRepresentation` -> `NBNavigationPath.CodableRepresentation`
 
+✳️ `NavigationSplitView` -> `NBNavigationSplitView` ([with limitations](#limitations-of-nbnavigationsplitview)
 
-You can migrate to these APIs now, and when you eventually bump your deployment target, you can remove this library and easily migrate to its SwiftUI equivalent. `NavigationStack`'s full API is replicated, so you can initialise an `NBNavigationStack` with a binding to an `Array`, with a binding to an `NBNavigationPath` binding, or with no binding at all.
+
+You can migrate to these APIs now, and when you eventually bump your deployment target to iOS 16, you can remove this library and easily migrate to its SwiftUI equivalent. `NavigationStack`'s full API is replicated, so you can initialise an `NBNavigationStack` with a binding to an `Array`, with a binding to a `NBNavigationPath` binding, or with no binding at all.
 
 ## Example
 
@@ -34,7 +36,7 @@ struct ContentView: View {
           NumberListView(numberList: numberList)
         })
         .nbNavigationDestination(for: Int.self, destination: { number in
-          NumberView(number: number)
+          NumberView(number: number, goBackToRoot: { path.removeLast(path.count) })
         })
         .nbNavigationDestination(for: EmojiVisualisation.self, destination: { visualisation in
           EmojiView(visualisation: visualisation)
@@ -67,9 +69,8 @@ struct NumberListView: View {
 }
 
 struct NumberView: View {
-  @EnvironmentObject var navigator: PathNavigator
-  
   let number: Int
+  let goBackToRoot: () -> Void
 
   var body: some View {
     VStack(spacing: 8) {
@@ -82,7 +83,7 @@ struct NumberView: View {
         value: EmojiVisualisation(emoji: "🐑", count: number),
         label: { Text("Visualise with sheep") }
       )
-      Button("Go back to root", action: { navigator.popToRoot() })
+      Button("Go back to root", action: goBackToRoot)
     }.navigationTitle("\(number)")
   }
 }
@@ -126,8 +127,6 @@ Or for a stack backed by an Array, e.g. `[ScreenType]`:
 @EnvironmentObject var navigator: Navigator<ScreenType>
 ```
 
-As well as allowing you to inspect the path elements, the navigator can be used to push new screens, pop, pop to a specific screen or pop to the root.
-
 ### Navigation functions
 
 Whether interacting with an `Array`, an `NBNavigationPath`, or a `Navigator`, a number of utility functions are available for easier navigation, such as:
@@ -146,7 +145,7 @@ Note that, if you want to use these methods on an `Array`, ensure the `Array`'s 
 
 ## Deep-linking
  
- Before `NavigationStack`, SwiftUI did not support pushing more than one screen in a single state update, e.g. when deep-linking to a screen multiple layers deep in a navigation hierarchy. `NavigationBackport` works around this limitation: you can make any such path changes, and the library will, behind the scenes, break down the larger update into a series of smaller updates that SwiftUI supports if necessary, with delays in between. For example, the following code that pushes three screens in one state update will push the screens one by one if needed:
+ Before `NavigationStack`, SwiftUI did not support pushing more than one screen in a single state update, e.g. when deep-linking to a screen multiple layers deep in a navigation hierarchy. `NavigationBackport` provides an API to work around this limitation: you can wrap such path changes within a call to `withDelaysIfUnsupported`, and the library will, if necessary, break down the larger update into a series of smaller updates that SwiftUI supports, with delays in between. For example, the following code that tries to push three screens in one update will not work:
 
 ```swift
   path.append(Screen.orders)
@@ -154,8 +153,22 @@ Note that, if you want to use these methods on an `Array`, ensure the `Array`'s 
   path.append(Screen.confirmChanges(orderId: id))
 ```
 
-This only happens when necessary: on versions of SwiftUI that support `NavigationStack`, all three screens will be pushed successfully in one update.
+However, the amended code below will successfully push all three screens, one after another:
+
+```swift
+$path.withDelaysIfUnsupported {
+  $0.append(Screen.orders)
+  $0.append(Screen.editOrder(id: id))
+  $0.append(Screen.confirmChanges(orderId: id))
+}
+```
+
+You can make any changes to the path passed into the `withDelaysIfUnsupported` closure, and the library will calculate the minimal number of state updates required to successfully update the UI.
 
 ## Support for iOS/tvOS 13
 
 This library targets iOS/tvOS versions 14 and above, since it uses `StateObject`, which is unavailable on iOS/tvOS 13. However, there is an `ios13` branch, which uses [SwiftUIBackports](https://github.com/shaps80/SwiftUIBackports)' backported StateObject, so that it works on iOS/tvOS 13 too.
+
+## Limitations of NBNavigationSplitView
+
+Some APIs related to column customisation are not available as they are not possible to backport using SwiftUI's older navigation APIs: e.g., `columnVisibility`, `navigationSplitViewColumnWidth` and `navigationSplitViewStyle`. Additionally, while it's possible to nest an `NBNavigationStack` within a `NBNavigationSplitView`, it should only be nested within the detail pane of the split view. Otherwise, sidebar and content screens might leak into the next pane.

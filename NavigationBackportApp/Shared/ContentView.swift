@@ -14,6 +14,28 @@ struct NumberList: Hashable, Codable {
   let range: Range<Int>
 }
 
+struct ContentView: View {
+  var body: some View {
+    TabView {
+      NBNavigationPathView()
+        .tabItem { Text("NBNavigationPath") }
+      ArrayBindingView()
+        .tabItem { Text("ArrayBinding") }
+      NoBindingView()
+        .tabItem { Text("NoBinding") }
+      #if os(macOS)
+        SplitDemo()
+          .tabItem { Text("SplitDemo") }
+      #else
+        if UIDevice.current.userInterfaceIdiom == .pad || UIDevice.current.userInterfaceIdiom == .mac {
+          SplitDemo()
+            .tabItem { Text("SplitDemo") }
+        }
+      #endif
+    }
+  }
+}
+
 class ClassDestination {
   let data: String
 
@@ -34,17 +56,4 @@ extension ClassDestination: Hashable {
 
 class SampleClassDestination: ClassDestination {
   init() { super.init(data: "Sample data") }
-}
-
-struct ContentView: View {
-  var body: some View {
-    TabView {
-      NoBindingView()
-        .tabItem { Text("NoBinding") }
-      NBNavigationPathView()
-        .tabItem { Text("NBNavigationPath") }
-      ArrayBindingView()
-        .tabItem { Text("ArrayBinding") }
-    }
-  }
 }
